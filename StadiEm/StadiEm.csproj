@@ -1,0 +1,215 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{0351E1D2-B91F-4B5D-A07D-7F35F24DCEB2}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>StadiEm</RootNamespace>
+    <AssemblyName>StadiEm</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject>StadiEm.Program</StartupObject>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>Resources\StadiEm.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="JetBrains.Annotations, Version=2018.3.0.0, Culture=neutral, PublicKeyToken=1010a0d8d6380325, processorArchitecture=MSIL">
+      <HintPath>..\packages\JetBrains.Annotations.2018.3.0\lib\net20\JetBrains.Annotations.dll</HintPath>
+    </Reference>
+    <Reference Include="Nefarius.ViGEm.Client, Version=1.16.145.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nefarius.ViGEm.Client.1.16.145\lib\net452\Nefarius.ViGEm.Client.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="HidSharp\AsyncResult.cs" />
+    <Compile Include="HidSharp\CommonException.cs" />
+    <Compile Include="HidSharp\Device.cs" />
+    <Compile Include="HidSharp\DeviceException.cs" />
+    <Compile Include="HidSharp\DeviceFilter.cs" />
+    <Compile Include="HidSharp\DeviceList.cs" />
+    <Compile Include="HidSharp\DeviceListChangedEventArgs.cs" />
+    <Compile Include="HidSharp\DeviceOpenUtility.cs" />
+    <Compile Include="HidSharp\DeviceStream.cs" />
+    <Compile Include="HidSharp\DeviceTypes.cs" />
+    <Compile Include="HidSharp\Exceptions\DeviceIOException.cs" />
+    <Compile Include="HidSharp\Exceptions\DeviceUnauthorizedAccessException.cs" />
+    <Compile Include="HidSharp\Exceptions\IDeviceException.cs" />
+    <Compile Include="HidSharp\Experimental\BleCccd.cs" />
+    <Compile Include="HidSharp\Experimental\BleCharacteristic.cs" />
+    <Compile Include="HidSharp\Experimental\BleCharacteristicProperties.cs" />
+    <Compile Include="HidSharp\Experimental\BleDescriptor.cs" />
+    <Compile Include="HidSharp\Experimental\BleDevice.cs" />
+    <Compile Include="HidSharp\Experimental\BleDiscovery.cs" />
+    <Compile Include="HidSharp\Experimental\BleEvent.cs" />
+    <Compile Include="HidSharp\Experimental\BleRequestFlags.cs" />
+    <Compile Include="HidSharp\Experimental\BleService.cs" />
+    <Compile Include="HidSharp\Experimental\BleStream.cs" />
+    <Compile Include="HidSharp\Experimental\BleUuid.cs" />
+    <Compile Include="HidSharp\Experimental\BleUuids.cs" />
+    <Compile Include="HidSharp\FilteredDeviceList.cs" />
+    <Compile Include="HidSharp\HidDevice.cs" />
+    <Compile Include="HidSharp\HidDeviceLoader.cs" />
+    <Compile Include="HidSharp\HidStream.cs" />
+    <Compile Include="HidSharp\ImplementationDetail.cs" />
+    <Compile Include="HidSharp\LocalDeviceList.cs" />
+    <Compile Include="HidSharp\OpenConfiguration.cs" />
+    <Compile Include="HidSharp\OpenOption.cs" />
+    <Compile Include="HidSharp\OpenPriority.cs" />
+    <Compile Include="HidSharp\Platform\HidManager.cs" />
+    <Compile Include="HidSharp\Platform\HidSelector.cs" />
+    <Compile Include="HidSharp\Platform\Libusb\LibusbHidManager.cs" />
+    <Compile Include="HidSharp\Platform\Libusb\NativeMethods.cs" />
+    <Compile Include="HidSharp\Platform\Linux\LinuxHidDevice.cs" />
+    <Compile Include="HidSharp\Platform\Linux\LinuxHidManager.cs" />
+    <Compile Include="HidSharp\Platform\Linux\LinuxHidStream.cs" />
+    <Compile Include="HidSharp\Platform\Linux\LinuxSerialDevice.cs" />
+    <Compile Include="HidSharp\Platform\Linux\LinuxSerialStream.cs" />
+    <Compile Include="HidSharp\Platform\Linux\NativeMethods.cs" />
+    <Compile Include="HidSharp\Platform\Linux\NativeMethodsLibudev.cs" />
+    <Compile Include="HidSharp\Platform\Linux\NativeMethodsLibudev0.cs" />
+    <Compile Include="HidSharp\Platform\Linux\NativeMethodsLibudev1.cs" />
+    <Compile Include="HidSharp\Platform\MacOS\MacHidDevice.cs" />
+    <Compile Include="HidSharp\Platform\MacOS\MacHidManager.cs" />
+    <Compile Include="HidSharp\Platform\MacOS\MacHidStream.cs" />
+    <Compile Include="HidSharp\Platform\MacOS\MacSerialDevice.cs" />
+    <Compile Include="HidSharp\Platform\MacOS\MacSerialStream.cs" />
+    <Compile Include="HidSharp\Platform\MacOS\NativeMethods.cs" />
+    <Compile Include="HidSharp\Platform\SysBleStream.cs" />
+    <Compile Include="HidSharp\Platform\SysHidStream.cs" />
+    <Compile Include="HidSharp\Platform\SysRefCountHelper.cs" />
+    <Compile Include="HidSharp\Platform\SysSerialStream.cs" />
+    <Compile Include="HidSharp\Platform\SystemEvents.cs" />
+    <Compile Include="HidSharp\Platform\Unsupported\UnsupportedHidManager.cs" />
+    <Compile Include="HidSharp\Platform\Utf8Marshaler.cs" />
+    <Compile Include="HidSharp\Platform\Windows\NativeMethods.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinBleCharacteristic.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinBleDescriptor.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinBleDevice.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinBleService.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinBleStream.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinHidDevice.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinHidDevice.ReportDescriptorBuilder.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinHidDevice.ReportDescriptorReconstructor.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinHidManager.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinHidStream.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinSerialDevice.cs" />
+    <Compile Include="HidSharp\Platform\Windows\WinSerialStream.cs" />
+    <Compile Include="HidSharp\Reports\DataConvert.cs" />
+    <Compile Include="HidSharp\Reports\DataItem.cs" />
+    <Compile Include="HidSharp\Reports\DataItemFlags.cs" />
+    <Compile Include="HidSharp\Reports\DataValue.cs" />
+    <Compile Include="HidSharp\Reports\DescriptorCollectionItem.cs" />
+    <Compile Include="HidSharp\Reports\DescriptorItem.cs" />
+    <Compile Include="HidSharp\Reports\DeviceItem.cs" />
+    <Compile Include="HidSharp\Reports\Encodings\CollectionType.cs" />
+    <Compile Include="HidSharp\Reports\Encodings\EncodedItem.cs" />
+    <Compile Include="HidSharp\Reports\Encodings\GlobalItemTag.cs" />
+    <Compile Include="HidSharp\Reports\Encodings\ItemType.cs" />
+    <Compile Include="HidSharp\Reports\Encodings\LocalItemTag.cs" />
+    <Compile Include="HidSharp\Reports\Encodings\MainItemTag.cs" />
+    <Compile Include="HidSharp\Reports\ExpectedUsageType.cs" />
+    <Compile Include="HidSharp\Reports\Indexes.cs" />
+    <Compile Include="HidSharp\Reports\IndexList.cs" />
+    <Compile Include="HidSharp\Reports\IndexRange.cs" />
+    <Compile Include="HidSharp\Reports\Input\DeviceItemInputParser.cs" />
+    <Compile Include="HidSharp\Reports\Input\HidDeviceInputReceiver.cs" />
+    <Compile Include="HidSharp\Reports\Report.cs" />
+    <Compile Include="HidSharp\Reports\ReportDescriptor.cs" />
+    <Compile Include="HidSharp\Reports\ReportDescriptorParseState.cs" />
+    <Compile Include="HidSharp\Reports\ReportType.cs" />
+    <Compile Include="HidSharp\Reports\Units\CurrentUnit.cs" />
+    <Compile Include="HidSharp\Reports\Units\LengthUnit.cs" />
+    <Compile Include="HidSharp\Reports\Units\LuminousIntensityUnit.cs" />
+    <Compile Include="HidSharp\Reports\Units\MassUnit.cs" />
+    <Compile Include="HidSharp\Reports\Units\TemperatureUnit.cs" />
+    <Compile Include="HidSharp\Reports\Units\TimeUnit.cs" />
+    <Compile Include="HidSharp\Reports\Units\Unit.cs" />
+    <Compile Include="HidSharp\Reports\Units\UnitKind.cs" />
+    <Compile Include="HidSharp\Reports\Units\UnitSystem.cs" />
+    <Compile Include="HidSharp\Reports\Usage.cs" />
+    <Compile Include="HidSharp\SerialDevice.cs" />
+    <Compile Include="HidSharp\SerialParity.cs" />
+    <Compile Include="HidSharp\SerialSettings.cs" />
+    <Compile Include="HidSharp\SerialStream.cs" />
+    <Compile Include="HidSharp\Throw.cs" />
+    <Compile Include="HidSharp\Utility\BcdHelper.cs" />
+    <Compile Include="HidSharp\Utility\HidSharpDiagnostics.cs" />
+    <Compile Include="HidSharp\Utility\HResult.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="StadiaController.cs" />
+    <Compile Include="StadiEmContext.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <None Include="app.manifest" />
+    <None Include="packages.config" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Resources\StadiEm.ico" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
