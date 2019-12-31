@@ -168,6 +168,7 @@ namespace StadiEm
 					catch
 					{
 						stream = device.Open();
+						NotifyUser( "Unable to open device in exclusive mode. Try closing other apps (Steam, Discord, internet browser, etc)." );
 					}
 
 					var usedIndexes = gamepads.Select( g => g._index );
@@ -195,6 +196,13 @@ namespace StadiEm
 				gamepad.unplug();
 			}
 			Application.Exit();
+		}
+
+		void NotifyUser( string message )
+		{
+			this.tray.BalloonTipTitle = "StadiEm";
+			this.tray.BalloonTipText = message;
+			this.tray.ShowBalloonTip( 1000 );
 		}
 	}
 }
