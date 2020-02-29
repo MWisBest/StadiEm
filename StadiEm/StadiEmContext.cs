@@ -35,10 +35,9 @@ namespace StadiEm
 			{
 				Icon = Properties.Resources.StadiEm,
 				Visible = true,
-				ContextMenu = new ContextMenu( new MenuItem[] {
-					new MenuItem( "Quit", Quit ),
-				} ),
+				ContextMenuStrip = new ContextMenuStrip(),
 			};
+			tray.ContextMenuStrip.Items.Add( new ToolStripMenuItem( "Quit", null, Quit ) );
 
 			gamepads = new List<StadiaController>();
 			client = new ViGEmClient();

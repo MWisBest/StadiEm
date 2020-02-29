@@ -86,7 +86,7 @@ namespace StadiEm
 				{
 					read = _stream.Read( data );
 				}
-				catch( TimeoutException e )
+				catch( TimeoutException )
 				{
 					read = 0;
 				}
