@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -152,6 +153,10 @@ namespace StadiEm
 					{
 						gamepads.Remove( gamepad );
 					}
+					if( gamepads.Count == 0 )
+					{
+						GCSettings.LatencyMode = GCLatencyMode.Interactive;
+					}
 				}
 				foreach( var deviceInstance in newDevices )
 				{
@@ -178,6 +183,7 @@ namespace StadiEm
 						index++;
 					}
 					gamepads.Add( new StadiaController( device, stream, client, index ) );
+					GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
 				}
 				Thread.Sleep( 1000 );
 			}
