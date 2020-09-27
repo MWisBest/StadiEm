@@ -1,4 +1,5 @@
 ﻿using HidSharp;
+using HidSharp.Exceptions;
 using HidSharp.Platform.Windows;
 using Nefarius.ViGEm.Client;
 using System;
@@ -17,7 +18,7 @@ namespace StadiEm
 		NotifyIcon tray;
 		Mutex singleInstanceMutex;
 		Thread t_monitor;
-		List<StadiaController> gamepads;
+		List<BaseHIDController> gamepads;
 		ViGEmClient client;
 		bool runMonitor;
 		Stopwatch sw = new Stopwatch();
@@ -39,7 +40,7 @@ namespace StadiEm
 			};
 			tray.ContextMenuStrip.Items.Add( new ToolStripMenuItem( "Quit", null, Quit ) );
 
-			gamepads = new List<StadiaController>();
+			gamepads = new List<BaseHIDController>();
 			client = new ViGEmClient();
 
 			t_monitor = new Thread( () => Monitor() )
@@ -144,6 +145,7 @@ namespace StadiEm
 			while( runMonitor )
 			{
 				var compatibleDevices = DeviceList.Local.GetHidDevices( StadiaController.VID, StadiaController.PID );
+				compatibleDevices = compatibleDevices.Concat( DeviceList.Local.GetHidDevices( RB3KeyboardController.VID, RB3KeyboardController.PID ) );
 				var existingDevices = gamepads.Select( g => g._device ).ToList();
 				var newDevices = compatibleDevices.Where( d => !existingDevices.Select( e => e.DevicePath ).Contains( d.DevicePath ) );
 				foreach( var gamepad in gamepads.ToList() )
@@ -160,7 +162,7 @@ namespace StadiEm
 				foreach( var deviceInstance in newDevices )
 				{
 					var device = deviceInstance;
-					HidStream stream;
+					HidStream stream = null;
 					try
 					{
 						reEnableDevice( devicePathToInstanceId( device.DevicePath ) );
@@ -171,8 +173,16 @@ namespace StadiEm
 					}
 					catch
 					{
-						stream = device.Open();
-						NotifyUser( "Unable to open device in exclusive mode. Try closing other apps (Steam, Discord, internet browser, etc)." );
+						try
+						{
+							stream = device.Open();
+							NotifyUser( "Unable to open device in exclusive mode. Try closing other apps (Steam, Discord, internet browser, etc)." );
+						}
+						catch( DeviceIOException )
+						{
+							// well, shit happens I guess. give up on this round of Monitor. I've run into this when unplugging RB3 keyboard dongles.
+							goto IOErrorSkip;
+						}
 					}
 
 					var usedIndexes = gamepads.Select( g => g._index );
@@ -181,9 +191,26 @@ namespace StadiEm
 					{
 						index++;
 					}
-					gamepads.Add( new StadiaController( device, stream, client, index ) );
+
+					switch( device.VendorID )
+					{
+						case StadiaController.VID:
+							if( device.ProductID == StadiaController.PID )
+							{
+								gamepads.Add( new StadiaController( device, stream, client, index ) );
+							}
+							break;
+						case RB3KeyboardController.VID:
+							if( device.ProductID == RB3KeyboardController.PID )
+							{
+								gamepads.Add( new RB3KeyboardController( device, stream, client, index ) );
+							}
+							break;
+					}
 					GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
+
 				}
+IOErrorSkip:
 				Thread.Sleep( 1000 );
 			}
 		}

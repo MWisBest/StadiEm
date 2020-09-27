@@ -26,9 +26,9 @@
     <Content Include="Resources\StadiEm.ico" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="JetBrains.Annotations" Version="2018.3.0" />
+    <PackageReference Include="JetBrains.Annotations" Version="2020.1.0" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="Nefarius.ViGEm.Client" Version="1.16.145" />
+    <PackageReference Include="Nefarius.ViGEm.Client" Version="1.16.150" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
   </ItemGroup>
 </Project>

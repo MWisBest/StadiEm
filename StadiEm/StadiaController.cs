@@ -9,31 +9,15 @@ using System.Threading;
 
 namespace StadiEm
 {
-	class StadiaController
+	class StadiaController : BaseHIDController
 	{
 		public const ushort VID = 0x18D1;
 		public const ushort PID = 0x9400;
-		public HidDevice _device;
-		public HidStream _stream;
-		public int _index;
-		public bool running;
-		public ViGEmClient _client;
-		public IXbox360Controller target360;
-		public IDualShock4Controller targetDS4;
+
 		public Thread ssThread, inputThread;
 
-		public StadiaController( HidDevice device, HidStream stream, ViGEmClient client, int index )
+		public StadiaController( HidDevice device, HidStream stream, ViGEmClient client, int index ) : base( device, stream, client, index )
 		{
-			_device = device;
-			_stream = stream;
-			_client = client;
-			_index = index;
-			running = true;
-
-			target360 = _client.CreateXbox360Controller();
-			targetDS4 = _client.CreateDualShock4Controller();
-			target360.AutoSubmitReport = false;
-			targetDS4.AutoSubmitReport = false;
 			target360.FeedbackReceived += this.Target360_FeedbackReceived;
 			targetDS4.FeedbackReceived += this.TargetDS4_FeedbackReceived;
 
@@ -55,7 +39,7 @@ namespace StadiEm
 			_stream.Write( vibReport );
 		}
 
-		public void unplug( bool joinInputThread = true )
+		public override void unplug( bool joinInputThread = true )
 		{
 			running = false;
 			// This seems out of order but it's what works.
@@ -77,6 +61,7 @@ namespace StadiEm
 			target360.Connect();
 			bool ss_button_pressed = false;
 			bool ss_button_held = false;
+			bool useAssistantButtonAsGuide = true;
 			_stream.ReadTimeout = Timeout.Infinite;
 			byte[] data = new byte[_device.GetMaxInputReportLength()];
 			while( running )
@@ -97,7 +82,8 @@ namespace StadiEm
 
 				if( read > 0 )
 				{
-					if( data[0] == 0x03 && read == 10 )
+					// A newer firmware uses 11 byte outputs, format appears to be unchanged and I have not found what the extra byte actually is.
+					if( data[0] == 0x03 && (read == 10 || read == 11) )
 					{
 						target360.ResetReport();
 						if( ( data[3] & 64 ) != 0 )
@@ -117,49 +103,63 @@ namespace StadiEm
 						if( ( data[2] & 128 ) != 0 )
 							target360.SetButtonState( Xbox360Button.RightThumb, true );
 						ss_button_pressed = ( data[2] & 1 ) != 0;
-						//assistant_button_pressed = ( currentState[2] & 2 ) != 0;
+						//assistant_button_pressed = ( data[2] & 2 ) != 0;
 						// [2] & 2 == Assistant, [2] & 1 == Screenshot
+
+						bool up = false;
+						bool down = false;
+						bool left = false;
+						bool right = false;
 
 						switch( data[1] )
 						{
 							default:
 								break;
 							case 0:
-								target360.SetButtonState( Xbox360Button.Up, true );
+								up = true;
 								break;
 							case 1:
-								target360.SetButtonState( Xbox360Button.Up, true );
-								target360.SetButtonState( Xbox360Button.Right, true );
+								up = true;
+								right = true;
 								break;
 							case 2:
-								target360.SetButtonState( Xbox360Button.Right, true );
+								right = true;
 								break;
 							case 3:
-								target360.SetButtonState( Xbox360Button.Down, true );
-								target360.SetButtonState( Xbox360Button.Right, true );
+								down = true;
+								right = true;
 								break;
 							case 4:
-								target360.SetButtonState( Xbox360Button.Down, true );
+								down = true;
 								break;
 							case 5:
-								target360.SetButtonState( Xbox360Button.Down, true );
-								target360.SetButtonState( Xbox360Button.Left, true );
+								down = true;
+								left = true;
 								break;
 							case 6:
-								target360.SetButtonState( Xbox360Button.Left, true );
+								left = true;
 								break;
 							case 7:
-								target360.SetButtonState( Xbox360Button.Up, true );
-								target360.SetButtonState( Xbox360Button.Left, true );
+								up = true;
+								left = true;
 								break;
 						}
+
+						target360.SetButtonState( Xbox360Button.Up, up );
+						target360.SetButtonState( Xbox360Button.Down, down );
+						target360.SetButtonState( Xbox360Button.Left, left );
+						target360.SetButtonState( Xbox360Button.Right, right );
 
 						if( ( data[2] & 32 ) != 0 )
 							target360.SetButtonState( Xbox360Button.Start, true );
 						if( ( data[2] & 64 ) != 0 )
 							target360.SetButtonState( Xbox360Button.Back, true );
 
-						if( ( data[2] & 16 ) != 0 )
+						if( useAssistantButtonAsGuide && ( data[2] & 2 ) != 0 )
+						{
+							target360.SetButtonState( Xbox360Button.Guide, true );
+						}
+						else if( ( data[2] & 16 ) != 0 )
 						{
 							target360.SetButtonState( Xbox360Button.Guide, true );
 						}
