@@ -4,6 +4,7 @@ using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 
@@ -14,16 +15,27 @@ namespace StadiEm
 		public const ushort VID = 0x18D1;
 		public const ushort PID = 0x9400;
 
-		public Thread ssThread, vidThread, inputThread;
+		public Thread ssThread, vidThread, inputThread, writeThread;
+		private AutoResetEvent writeEvent;
+		private ConcurrentQueue<byte[]> writeQueue;
 
 		public StadiaController( HidDevice device, HidStream stream, ViGEmClient client, int index ) : base( device, stream, client, index )
 		{
 			target360.FeedbackReceived += this.Target360_FeedbackReceived;
 			targetDS4.FeedbackReceived += this.TargetDS4_FeedbackReceived;
 
+			writeEvent = new AutoResetEvent( false );
+			writeQueue = new ConcurrentQueue<byte[]>();
+
 			inputThread = new Thread( () => input_thread() );
-			inputThread.Priority = ThreadPriority.AboveNormal;
 			inputThread.Name = "Controller #" + index + " Input";
+
+			writeThread = new Thread( () => write_thread() );
+			writeThread.Name = "Controller #" + index + " Output";
+
+			// This order is important.
+			// input thread starts connection to vigem, write thread should be ready immediately
+			writeThread.Start();
 			inputThread.Start();
 		}
 
@@ -37,23 +49,84 @@ namespace StadiEm
 			vibrate( e.LargeMotor, e.SmallMotor );
 		}
 
-		private void vibrate( byte largeMotor, byte smallMotor, bool firstTry = true )
+		private void vibrate( byte largeMotor, byte smallMotor )
 		{
 			byte[] vibReport = { 0x05, largeMotor, largeMotor, smallMotor, smallMotor };
+
+			writeQueue.Enqueue( vibReport );
 			try
 			{
-				_stream.Write( vibReport );
+				writeEvent.Set();
 			}
-			catch( TimeoutException )
+			catch( ObjectDisposedException )
 			{
-				if( firstTry )
+			}
+		}
+
+		public void write_thread()
+		{
+			byte[] queuedWrite;
+			bool peekSuccess, dequeueSuccess, writeSuccess;
+			int peekFailCounter = 0, dequeueFailCounter = 0;
+			_stream.WriteTimeout = 1000;
+			while( running )
+			{
+				writeEvent.WaitOne( 200 );
+				while( !writeQueue.IsEmpty )
 				{
-					vibrate( largeMotor, smallMotor, firstTry: false );
+					peekSuccess = writeQueue.TryPeek( out queuedWrite );
+					if( peekSuccess )
+					{
+						peekFailCounter = 0;
+						try
+						{
+							_stream.Write( queuedWrite );
+							writeSuccess = true;
+						}
+						catch( TimeoutException )
+						{
+							writeSuccess = false;
+						}
+						catch
+						{
+							// Something more serious has happened. Bail.
+							unplug( joinInputThread: false );
+							break;
+						}
+
+						if( writeSuccess )
+						{
+							// Even if we don't dequeue successfully we'll just write the same thing again which isn't a huge deal...
+							// Hopefully in that case it just fixes itself later.
+							do
+							{
+								dequeueSuccess = writeQueue.TryDequeue( out queuedWrite );
+							}
+							while( !dequeueSuccess && dequeueFailCounter++ <= 10 );
+							dequeueFailCounter = 0;
+						}
+					}
+					else if( peekFailCounter++ >= 10 )
+					{
+						// we appear to be having an unknown issue. try again later.
+						peekFailCounter = 0;
+						break;
+					}
 				}
+			}
+			try
+			{
+				writeEvent.Dispose();
 			}
 			catch
 			{
-				unplug( joinInputThread: false );
+			}
+			try
+			{
+				writeQueue.Clear();
+			}
+			catch
+			{
 			}
 		}
 
@@ -83,7 +156,10 @@ namespace StadiEm
 			}
 
 			if( joinInputThread )
+			{
+				writeThread.Join();
 				inputThread.Join();
+			}
 		}
 
 		private void input_thread()
@@ -99,7 +175,6 @@ namespace StadiEm
 			bool assistant_button_held = false;
 			bool useAssistantButtonAsGuide = false;
 			_stream.ReadTimeout = Timeout.Infinite;
-			_stream.WriteTimeout = Timeout.Infinite;
 			byte[] data = new byte[_device.GetMaxInputReportLength()];
 			while( running )
 			{
@@ -115,6 +190,7 @@ namespace StadiEm
 				catch
 				{
 					unplug( joinInputThread: false );
+					break;
 				}
 
 				if( read > 0 )
@@ -286,10 +362,16 @@ namespace StadiEm
 					assistant_button_held = false;
 				}
 			}
-			if( pluggedIn360 )
+			try
 			{
-				pluggedIn360 = false;
-				target360.Disconnect();
+				if( pluggedIn360 )
+				{
+					pluggedIn360 = false;
+					target360.Disconnect();
+				}
+			}
+			catch
+			{
 			}
 		}
 	}
