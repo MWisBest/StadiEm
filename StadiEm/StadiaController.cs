@@ -14,7 +14,7 @@ namespace StadiEm
 		public const ushort VID = 0x18D1;
 		public const ushort PID = 0x9400;
 
-		public Thread ssThread, inputThread;
+		public Thread ssThread, vidThread, inputThread;
 
 		public StadiaController( HidDevice device, HidStream stream, ViGEmClient client, int index ) : base( device, stream, client, index )
 		{
@@ -29,14 +29,32 @@ namespace StadiEm
 
 		private void Target360_FeedbackReceived( object sender, Xbox360FeedbackReceivedEventArgs e )
 		{
-			byte[] vibReport = { 0x05, e.LargeMotor, e.LargeMotor, e.SmallMotor, e.SmallMotor };
-			_stream.Write( vibReport );
+			vibrate( e.LargeMotor, e.SmallMotor );
 		}
 
 		private void TargetDS4_FeedbackReceived( object sender, DualShock4FeedbackReceivedEventArgs e )
 		{
-			byte[] vibReport = { 0x05, e.LargeMotor, e.LargeMotor, e.SmallMotor, e.SmallMotor };
-			_stream.Write( vibReport );
+			vibrate( e.LargeMotor, e.SmallMotor );
+		}
+
+		private void vibrate( byte largeMotor, byte smallMotor, bool firstTry = true )
+		{
+			byte[] vibReport = { 0x05, largeMotor, largeMotor, smallMotor, smallMotor };
+			try
+			{
+				_stream.Write( vibReport );
+			}
+			catch( TimeoutException )
+			{
+				if( firstTry )
+				{
+					vibrate( largeMotor, smallMotor, firstTry: false );
+				}
+			}
+			catch
+			{
+				unplug( joinInputThread: false );
+			}
 		}
 
 		public override void unplug( bool joinInputThread = true )
@@ -52,17 +70,36 @@ namespace StadiEm
 				// ¯\_(ツ)_/¯
 			}
 
+			try
+			{
+				if( pluggedIn360 )
+				{
+					pluggedIn360 = false;
+					target360.Disconnect();
+				}
+			}
+			catch
+			{
+			}
+
 			if( joinInputThread )
 				inputThread.Join();
 		}
 
 		private void input_thread()
 		{
-			target360.Connect();
+			if( !pluggedIn360 )
+			{
+				pluggedIn360 = true;
+				target360.Connect();
+			}
 			bool ss_button_pressed = false;
 			bool ss_button_held = false;
-			bool useAssistantButtonAsGuide = true;
+			bool assistant_button_pressed = false;
+			bool assistant_button_held = false;
+			bool useAssistantButtonAsGuide = false;
 			_stream.ReadTimeout = Timeout.Infinite;
+			_stream.WriteTimeout = Timeout.Infinite;
 			byte[] data = new byte[_device.GetMaxInputReportLength()];
 			while( running )
 			{
@@ -83,7 +120,7 @@ namespace StadiEm
 				if( read > 0 )
 				{
 					// A newer firmware uses 11 byte outputs, format appears to be unchanged and I have not found what the extra byte actually is.
-					if( data[0] == 0x03 && (read == 10 || read == 11) )
+					if( data[0] == 0x03 && ( read == 10 || read == 11 ) )
 					{
 						target360.ResetReport();
 						if( ( data[3] & 64 ) != 0 )
@@ -103,7 +140,7 @@ namespace StadiEm
 						if( ( data[2] & 128 ) != 0 )
 							target360.SetButtonState( Xbox360Button.RightThumb, true );
 						ss_button_pressed = ( data[2] & 1 ) != 0;
-						//assistant_button_pressed = ( data[2] & 2 ) != 0;
+						assistant_button_pressed = ( data[2] & 2 ) != 0;
 						// [2] & 2 == Assistant, [2] & 1 == Screenshot
 
 						bool up = false;
@@ -113,6 +150,7 @@ namespace StadiEm
 
 						switch( data[1] )
 						{
+							case 8:
 							default:
 								break;
 							case 0:
@@ -229,8 +267,30 @@ namespace StadiEm
 				{
 					ss_button_held = false;
 				}
+
+				if( assistant_button_pressed && !assistant_button_held )
+				{
+					assistant_button_held = true;
+					try
+					{
+						// TODO: Allow configuring this keybind.
+						vidThread = new Thread( () => System.Windows.Forms.SendKeys.SendWait( "^+E" ) );
+						vidThread.Start();
+					}
+					catch
+					{
+					}
+				}
+				else if( assistant_button_held && !assistant_button_pressed )
+				{
+					assistant_button_held = false;
+				}
 			}
-			target360.Disconnect();
+			if( pluggedIn360 )
+			{
+				pluggedIn360 = false;
+				target360.Disconnect();
+			}
 		}
 	}
 }

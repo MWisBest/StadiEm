@@ -19,6 +19,8 @@ namespace StadiEm
 		public IXbox360Controller target360;
 		public IDualShock4Controller targetDS4;
 
+		public bool pluggedIn360 = false;
+
 		public BaseHIDController( HidDevice device, HidStream stream, ViGEmClient client, int index )
 		{
 			_device = device;
