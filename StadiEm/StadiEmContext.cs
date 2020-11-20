@@ -171,12 +171,12 @@ namespace StadiEm
 						oc.SetOption( OpenOption.Priority, OpenPriority.VeryHigh );
 						stream = device.Open( oc );
 					}
-					catch
+					catch( DeviceIOException )
 					{
 						try
 						{
 							stream = device.Open();
-							NotifyUser( "Unable to open device in exclusive mode. Try closing other apps (Steam, Discord, internet browser, etc)." );
+							NotifyUser( "Unable to open device in exclusive mode. Try reconnecting the controller; you may also need to close other apps (Steam, Discord, internet browser, etc)." );
 						}
 						catch( DeviceIOException )
 						{
