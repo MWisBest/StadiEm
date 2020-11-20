@@ -251,7 +251,7 @@ WRITE_STREAM_FAILURE:
 						{
 							case 8:
 							default:
-								break;
+								goto INPUT_SKIP_DPAD;
 							case 0:
 								up = true;
 								break;
@@ -287,6 +287,7 @@ WRITE_STREAM_FAILURE:
 						target360.SetButtonState( Xbox360Button.Left, left );
 						target360.SetButtonState( Xbox360Button.Right, right );
 
+INPUT_SKIP_DPAD:
 						if( ( data[DATA_BUTTONS_1] & 32 ) != 0 )
 							target360.SetButtonState( Xbox360Button.Start, true );
 						if( ( data[DATA_BUTTONS_1] & 64 ) != 0 )
