@@ -5,6 +5,7 @@ using Nefarius.ViGEm.Client.Targets.DualShock4;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
 using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.IO;
 using System.Threading;
 
@@ -14,8 +15,20 @@ namespace StadiEm
 	{
 		public const ushort VID = 0x18D1;
 		public const ushort PID = 0x9400;
+		public const int DATA_ID = 0x00;
+		public const int DATA_DPAD = 0x01;
+		public const int DATA_BUTTONS_1 = 0x02;
+		public const int DATA_BUTTONS_2 = 0x03;
+		public const int DATA_LX = 0x04;
+		public const int DATA_LY = 0x05;
+		public const int DATA_RX = 0x06;
+		public const int DATA_RY = 0x07;
+		public const int DATA_ZL = 0x08;
+		public const int DATA_ZR = 0x09;
 
 		public Thread ssThread, vidThread, inputThread, writeThread;
+		public byte[] stickDeadzones;
+		public byte[] triggerDeadzones;
 		private AutoResetEvent writeEvent;
 		private ConcurrentQueue<byte[]> writeQueue;
 
@@ -23,6 +36,15 @@ namespace StadiEm
 		{
 			target360.FeedbackReceived += this.Target360_FeedbackReceived;
 			targetDS4.FeedbackReceived += this.TargetDS4_FeedbackReceived;
+
+			if( !pluggedIn360 )
+			{
+				pluggedIn360 = true;
+				target360.Connect();
+			}
+
+			stickDeadzones = new byte[] { 1, 1, 1, 1 };
+			triggerDeadzones = new byte[] { 1, 1 };
 
 			writeEvent = new AutoResetEvent( false );
 			writeQueue = new ConcurrentQueue<byte[]>();
@@ -33,8 +55,6 @@ namespace StadiEm
 			writeThread = new Thread( () => write_thread() );
 			writeThread.Name = "Controller #" + index + " Output";
 
-			// This order is important.
-			// input thread starts connection to vigem, write thread should be ready immediately
 			writeThread.Start();
 			inputThread.Start();
 		}
@@ -80,6 +100,7 @@ namespace StadiEm
 						peekFailCounter = 0;
 						try
 						{
+							// null checking _stream is useless because it can get closed while we're blocking on this write.
 							_stream.Write( queuedWrite );
 							writeSuccess = true;
 						}
@@ -87,11 +108,22 @@ namespace StadiEm
 						{
 							writeSuccess = false;
 						}
-						catch
+						catch( IOException e )
 						{
-							// Something more serious has happened. Bail.
-							unplug( joinInputThread: false );
-							break;
+							if( e.InnerException != null &&
+								e.InnerException is Win32Exception exception &&
+								( exception.NativeErrorCode.Equals( 0x0000048F ) || exception.NativeErrorCode.Equals( 0x000001B1 ) ) )
+							{
+								goto WRITE_STREAM_FAILURE;
+							}
+							else
+							{
+								throw e;
+							}
+						}
+						catch( ObjectDisposedException )
+						{
+							goto WRITE_STREAM_FAILURE;
 						}
 
 						if( writeSuccess )
@@ -114,61 +146,43 @@ namespace StadiEm
 					}
 				}
 			}
-			try
-			{
-				writeEvent.Dispose();
-			}
-			catch
-			{
-			}
-			try
-			{
-				writeQueue.Clear();
-			}
-			catch
-			{
-			}
+			writeEvent.Dispose();
+			writeQueue.Clear();
+			return;
+
+WRITE_STREAM_FAILURE:
+			unplug( joinInputThread: false );
+			writeEvent.Dispose();
+			writeQueue.Clear();
 		}
 
 		public override void unplug( bool joinInputThread = true )
 		{
-			running = false;
-			// This seems out of order but it's what works.
-			try
+			// In general, errors also run this function, which can be called from multiple threads.
+			// Therefore, make some effort to ensure we don't double-up on everything here.
+			// The StadiEm control flow for exceptions is horrible; TODO: fix that.
+			if( running )
 			{
-				_stream.Close();
-			}
-			catch
-			{
-				// ¯\_(ツ)_/¯
-			}
+				running = false;
+				// This seems out of order but it's what works.
+				_stream.Dispose();
 
-			try
-			{
 				if( pluggedIn360 )
 				{
 					pluggedIn360 = false;
 					target360.Disconnect();
 				}
-			}
-			catch
-			{
-			}
 
-			if( joinInputThread )
-			{
-				writeThread.Join();
-				inputThread.Join();
+				if( joinInputThread )
+				{
+					writeThread.Join();
+					inputThread.Join();
+				}
 			}
 		}
 
 		private void input_thread()
 		{
-			if( !pluggedIn360 )
-			{
-				pluggedIn360 = true;
-				target360.Connect();
-			}
 			bool ss_button_pressed = false;
 			bool ss_button_held = false;
 			bool assistant_button_pressed = false;
@@ -181,42 +195,51 @@ namespace StadiEm
 				int read = 0;
 				try
 				{
+					// null checking _stream is useless because it can get closed while we're blocking on this read.
 					read = _stream.Read( data );
 				}
-				catch( TimeoutException )
+				catch( IOException e )
 				{
-					read = 0;
+					if( e.InnerException != null &&
+						e.InnerException is Win32Exception exception &&
+						( exception.NativeErrorCode.Equals( 0x0000048F ) || exception.NativeErrorCode.Equals( 0x000001B1 ) ) )
+					{
+						goto INPUT_STREAM_FAILURE;
+					}
+					else
+					{
+						throw e;
+					}
 				}
-				catch
+				catch( ObjectDisposedException )
 				{
-					unplug( joinInputThread: false );
-					break;
+					goto INPUT_STREAM_FAILURE;
 				}
 
 				if( read > 0 )
 				{
 					// A newer firmware uses 11 byte outputs, format appears to be unchanged and I have not found what the extra byte actually is.
-					if( data[0] == 0x03 && ( read == 10 || read == 11 ) )
+					if( data[DATA_ID] == 0x03 && ( read == 10 || read == 11 ) )
 					{
 						target360.ResetReport();
-						if( ( data[3] & 64 ) != 0 )
+						if( ( data[DATA_BUTTONS_2] & 64 ) != 0 )
 							target360.SetButtonState( Xbox360Button.A, true );
-						if( ( data[3] & 32 ) != 0 )
+						if( ( data[DATA_BUTTONS_2] & 32 ) != 0 )
 							target360.SetButtonState( Xbox360Button.B, true );
-						if( ( data[3] & 16 ) != 0 )
+						if( ( data[DATA_BUTTONS_2] & 16 ) != 0 )
 							target360.SetButtonState( Xbox360Button.X, true );
-						if( ( data[3] & 8 ) != 0 )
+						if( ( data[DATA_BUTTONS_2] & 8 ) != 0 )
 							target360.SetButtonState( Xbox360Button.Y, true );
-						if( ( data[3] & 4 ) != 0 )
+						if( ( data[DATA_BUTTONS_2] & 4 ) != 0 )
 							target360.SetButtonState( Xbox360Button.LeftShoulder, true );
-						if( ( data[3] & 2 ) != 0 )
+						if( ( data[DATA_BUTTONS_2] & 2 ) != 0 )
 							target360.SetButtonState( Xbox360Button.RightShoulder, true );
-						if( ( data[3] & 1 ) != 0 )
+						if( ( data[DATA_BUTTONS_2] & 1 ) != 0 )
 							target360.SetButtonState( Xbox360Button.LeftThumb, true );
-						if( ( data[2] & 128 ) != 0 )
+						if( ( data[DATA_BUTTONS_1] & 128 ) != 0 )
 							target360.SetButtonState( Xbox360Button.RightThumb, true );
-						ss_button_pressed = ( data[2] & 1 ) != 0;
-						assistant_button_pressed = ( data[2] & 2 ) != 0;
+						ss_button_pressed = ( data[DATA_BUTTONS_1] & 1 ) != 0;
+						assistant_button_pressed = ( data[DATA_BUTTONS_1] & 2 ) != 0;
 						// [2] & 2 == Assistant, [2] & 1 == Screenshot
 
 						bool up = false;
@@ -224,7 +247,7 @@ namespace StadiEm
 						bool left = false;
 						bool right = false;
 
-						switch( data[1] )
+						switch( data[DATA_DPAD] )
 						{
 							case 8:
 							default:
@@ -264,18 +287,35 @@ namespace StadiEm
 						target360.SetButtonState( Xbox360Button.Left, left );
 						target360.SetButtonState( Xbox360Button.Right, right );
 
-						if( ( data[2] & 32 ) != 0 )
+						if( ( data[DATA_BUTTONS_1] & 32 ) != 0 )
 							target360.SetButtonState( Xbox360Button.Start, true );
-						if( ( data[2] & 64 ) != 0 )
+						if( ( data[DATA_BUTTONS_1] & 64 ) != 0 )
 							target360.SetButtonState( Xbox360Button.Back, true );
 
-						if( useAssistantButtonAsGuide && ( data[2] & 2 ) != 0 )
+						if( useAssistantButtonAsGuide && ( data[DATA_BUTTONS_1] & 2 ) != 0 )
 						{
 							target360.SetButtonState( Xbox360Button.Guide, true );
 						}
-						else if( ( data[2] & 16 ) != 0 )
+						else if( ( data[DATA_BUTTONS_1] & 16 ) != 0 )
 						{
 							target360.SetButtonState( Xbox360Button.Guide, true );
+						}
+
+						// stick deadzones
+						for( int i = DATA_LX; i <= DATA_RY; ++i )
+						{
+							if( ( data[i] <= 0x7F && ( data[i] + stickDeadzones[i - 4] >= 0x80 ) ) || ( data[i] >= 0x81 && ( data[i] - stickDeadzones[i - 4] <= 0x80) ) )
+							{
+								data[i] = 0x80;
+							}
+						}
+						// trigger deadzones
+						for( int i = DATA_ZL; i <= DATA_ZR; ++i )
+						{
+							if( data[i] > 0x00 && ( data[i] - triggerDeadzones[i - 8] <= 0x00 ) )
+							{
+								data[i] = 0x00;
+							}
 						}
 
 						// Note: The HID reports do not allow stick values of 00.
@@ -284,7 +324,7 @@ namespace StadiEm
 						// For our purposes I believe this is undesirable. Subtract 1 from negative
 						// values to allow maxing out the stick values.
 						// TODO: Get an Xbox controller and verify this is standard behavior.
-						for( int i = 4; i <= 7; ++i )
+						for( int i = DATA_LX; i <= DATA_RY; ++i )
 						{
 							if( data[i] <= 0x7F && data[i] > 0x00 )
 							{
@@ -292,24 +332,24 @@ namespace StadiEm
 							}
 						}
 
-						ushort LeftStickXunsigned = (ushort)( data[4] << 8 | ( data[4] << 1 & 255 ) );
+						ushort LeftStickXunsigned = (ushort)( data[DATA_LX] << 8 | ( data[DATA_LX] << 1 & 255 ) );
 						if( LeftStickXunsigned == 0xFFFE )
 							LeftStickXunsigned = 0xFFFF;
 						short LeftStickX = (short)( LeftStickXunsigned - 0x8000 );
 
-						ushort LeftStickYunsigned = (ushort)( data[5] << 8 | ( data[5] << 1 & 255 ) );
+						ushort LeftStickYunsigned = (ushort)( data[DATA_LY] << 8 | ( data[DATA_LY] << 1 & 255 ) );
 						if( LeftStickYunsigned == 0xFFFE )
 							LeftStickYunsigned = 0xFFFF;
 						short LeftStickY = (short)( -LeftStickYunsigned + 0x7FFF );
 						if( LeftStickY == -1 )
 							LeftStickY = 0;
 
-						ushort RightStickXunsigned = (ushort)( data[6] << 8 | ( data[6] << 1 & 255 ) );
+						ushort RightStickXunsigned = (ushort)( data[DATA_RX] << 8 | ( data[DATA_RX] << 1 & 255 ) );
 						if( RightStickXunsigned == 0xFFFE )
 							RightStickXunsigned = 0xFFFF;
 						short RightStickX = (short)( RightStickXunsigned - 0x8000 );
 
-						ushort RightStickYunsigned = (ushort)( data[7] << 8 | ( data[7] << 1 & 255 ) );
+						ushort RightStickYunsigned = (ushort)( data[DATA_RY] << 8 | ( data[DATA_RY] << 1 & 255 ) );
 						if( RightStickYunsigned == 0xFFFE )
 							RightStickYunsigned = 0xFFFF;
 						short RightStickY = (short)( -RightStickYunsigned + 0x7FFF );
@@ -320,59 +360,52 @@ namespace StadiEm
 						target360.SetAxisValue( Xbox360Axis.LeftThumbY, LeftStickY );
 						target360.SetAxisValue( Xbox360Axis.RightThumbX, RightStickX );
 						target360.SetAxisValue( Xbox360Axis.RightThumbY, RightStickY );
-						target360.SetSliderValue( Xbox360Slider.LeftTrigger, data[8] );
-						target360.SetSliderValue( Xbox360Slider.RightTrigger, data[9] );
+						target360.SetSliderValue( Xbox360Slider.LeftTrigger, data[DATA_ZL] );
+						target360.SetSliderValue( Xbox360Slider.RightTrigger, data[DATA_ZR] );
 						target360.SubmitReport();
-					}
-				}
 
-				if( ss_button_pressed && !ss_button_held )
-				{
-					ss_button_held = true;
-					try
-					{
-						// TODO: Allow configuring this keybind.
-						ssThread = new Thread( () => System.Windows.Forms.SendKeys.SendWait( "^+Z" ) );
-						ssThread.Start();
-					}
-					catch
-					{
-					}
-				}
-				else if( ss_button_held && !ss_button_pressed )
-				{
-					ss_button_held = false;
-				}
+						if( ss_button_pressed && !ss_button_held )
+						{
+							ss_button_held = true;
+							try
+							{
+								// TODO: Allow configuring this keybind.
+								ssThread = new Thread( () => System.Windows.Forms.SendKeys.SendWait( "^+Z" ) );
+								ssThread.Start();
+							}
+							catch
+							{
+							}
+						}
+						else if( ss_button_held && !ss_button_pressed )
+						{
+							ss_button_held = false;
+						}
 
-				if( assistant_button_pressed && !assistant_button_held )
-				{
-					assistant_button_held = true;
-					try
-					{
-						// TODO: Allow configuring this keybind.
-						vidThread = new Thread( () => System.Windows.Forms.SendKeys.SendWait( "^+E" ) );
-						vidThread.Start();
+						if( assistant_button_pressed && !assistant_button_held )
+						{
+							assistant_button_held = true;
+							try
+							{
+								// TODO: Allow configuring this keybind.
+								vidThread = new Thread( () => System.Windows.Forms.SendKeys.SendWait( "^+E" ) );
+								vidThread.Start();
+							}
+							catch
+							{
+							}
+						}
+						else if( assistant_button_held && !assistant_button_pressed )
+						{
+							assistant_button_held = false;
+						}
 					}
-					catch
-					{
-					}
-				}
-				else if( assistant_button_held && !assistant_button_pressed )
-				{
-					assistant_button_held = false;
 				}
 			}
-			try
-			{
-				if( pluggedIn360 )
-				{
-					pluggedIn360 = false;
-					target360.Disconnect();
-				}
-			}
-			catch
-			{
-			}
+			return;
+
+INPUT_STREAM_FAILURE:
+			unplug( joinInputThread: false );
 		}
 	}
 }
