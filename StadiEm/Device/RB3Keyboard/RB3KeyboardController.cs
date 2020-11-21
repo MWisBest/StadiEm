@@ -6,7 +6,7 @@ using System;
 using System.IO;
 using System.Threading;
 
-namespace StadiEm
+namespace StadiEm.Device.RB3KeyboardController
 {
 	class RB3KeyboardController : BaseHIDController
 	{

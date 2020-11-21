@@ -11,6 +11,10 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
+using StadiEm.Device;
+using StadiEm.Device.Stadia;
+using StadiEm.Device.RB3KeyboardController;
+
 namespace StadiEm
 {
 	class StadiEmContext : ApplicationContext
