@@ -27,7 +27,10 @@ namespace StadiEm.Device.Stadia
 		public const int DATA_L2 = 0x08;
 		public const int DATA_R2 = 0x09;
 
-		public Dictionary<Type, Xbox360Property> xboxMap;
+		public List<Dictionary<Type, Xbox360Property>> profiles;
+		public int currentProfile = 0;
+
+		private Dictionary<Type, Xbox360Property> xboxMap;
 
 		public Thread ssThread, vidThread, inputThread, writeThread;
 		private AutoResetEvent writeEvent;
@@ -35,6 +38,7 @@ namespace StadiEm.Device.Stadia
 
 		public StadiaController( HidDevice device, HidStream stream, ViGEmClient client, int index ) : base( device, stream, client, index )
 		{
+			profiles = new List<Dictionary<Type, Xbox360Property>>();
 			xboxMap = new Dictionary<Type, Xbox360Property>
 			{
 				[typeof( StadiaButton.A )] = Xbox360Button.A,
@@ -59,6 +63,15 @@ namespace StadiEm.Device.Stadia
 				[typeof( StadiaSlider.L2 )] = Xbox360Slider.LeftTrigger,
 				[typeof( StadiaSlider.R2 )] = Xbox360Slider.RightTrigger,
 			};
+			Dictionary<Type, Xbox360Property> codMap = new Dictionary<Type, Xbox360Property>();
+			foreach( Type key in xboxMap.Keys )
+			{
+				codMap.Add( key, xboxMap[key] );
+			}
+			codMap[typeof( StadiaButton.B )] = Xbox360Slider.RightTrigger;
+			codMap[typeof( StadiaSlider.R2 )] = Xbox360Button.B;
+			profiles.Add( xboxMap );
+			profiles.Add( codMap );
 
 			target360.FeedbackReceived += this.Target360_FeedbackReceived;
 			targetDS4.FeedbackReceived += this.TargetDS4_FeedbackReceived;
@@ -208,8 +221,8 @@ WRITE_STREAM_FAILURE:
 		{
 			bool ss_button_held = false;
 			bool assistant_button_held = false;
+			bool stadia_combo_held = false;
 			bool instant_trigger_release = false;
-			bool round_left_stick_corners = false;
 			bool instantReleaseL = false;
 			bool instantReleaseR = false;
 			_stream.ReadTimeout = Timeout.Infinite;
@@ -295,28 +308,6 @@ WRITE_STREAM_FAILURE:
 						}
 					}*/
 
-					byte curLX = report.LX;
-					byte curLY = report.LY;
-					if( round_left_stick_corners )
-					{
-						if( curLX < 0x2A )
-						{
-							curLX >>= 1;
-						}
-						else if( curLX > 0xD5 )
-						{
-							curLX = (byte)( curLX + ( ( ( 0xFF - curLX ) >> 1 ) & 0xFF ) );
-						}
-						if( curLY < 0x2A )
-						{
-							curLY >>= 1;
-						}
-						else if( curLY > 0xD5 )
-						{
-							curLY = (byte)( curLY + ( ( ( 0xFF - curLY ) >> 1 ) & 0xFF ) );
-						}
-					}
-
 					byte curL2 = report.L2;
 					byte curR2 = report.R2;
 					if( instant_trigger_release )
@@ -361,15 +352,14 @@ WRITE_STREAM_FAILURE:
 					// Modify current report values before translating to Xbox
 					report.L2.Value = curL2;
 					report.R2.Value = curR2;
-					report.LX.Value = curLX;
-					report.LY.Value = curLY;
 
 					// reset report in case profile updates as we're running
 					target360.ResetReport();
+					Dictionary<Type, Xbox360Property> profile = profiles[currentProfile];
 					foreach( StadiaProperty prop in report.Props )
 					{
 						Type stadiaType = prop.GetType();
-						if( xboxMap.TryGetValue( stadiaType, out Xbox360Property xboxProp ) )
+						if( profile.TryGetValue( stadiaType, out Xbox360Property xboxProp ) )
 						{
 							if( xboxProp is Xbox360Button xbutton )
 							{
@@ -451,6 +441,29 @@ WRITE_STREAM_FAILURE:
 					else if( assistant_button_held && !report.Assistant )
 					{
 						assistant_button_held = false;
+					}
+
+					if( report.Stadia && ( report.Down || report.Up ) && !stadia_combo_held )
+					{
+						stadia_combo_held = true;
+						if( report.Up )
+						{
+							if( ++currentProfile > profiles.Count - 1 )
+							{
+								currentProfile = profiles.Count - 1;
+							}
+						}
+						else// if( report.Down )
+						{
+							if( --currentProfile < 0 )
+							{
+								currentProfile = 0;
+							}
+						}
+					}
+					else
+					{
+						stadia_combo_held = false;
 					}
 				}
 			}
