@@ -16,17 +16,6 @@ namespace StadiEm.Device.Stadia
 		public const ushort VID = 0x18D1;
 		public const ushort PID = 0x9400;
 
-		public const int DATA_ID = 0x00;
-		public const int DATA_DPAD = 0x01;
-		public const int DATA_BUTTONS_1 = 0x02;
-		public const int DATA_BUTTONS_2 = 0x03;
-		public const int DATA_LX = 0x04;
-		public const int DATA_LY = 0x05;
-		public const int DATA_RX = 0x06;
-		public const int DATA_RY = 0x07;
-		public const int DATA_L2 = 0x08;
-		public const int DATA_R2 = 0x09;
-
 		public List<Dictionary<Type, Xbox360Property>> profiles;
 		public int currentProfile = 0;
 
@@ -127,7 +116,7 @@ namespace StadiEm.Device.Stadia
 			_stream.WriteTimeout = 1000;
 			while( running )
 			{
-				writeEvent.WaitOne( 200 );
+				writeEvent.WaitOne( 1000 );
 				while( !writeQueue.IsEmpty )
 				{
 					peekSuccess = writeQueue.TryPeek( out queuedWrite );
@@ -219,17 +208,13 @@ WRITE_STREAM_FAILURE:
 
 		private void input_thread()
 		{
-			bool ss_button_held = false;
-			bool assistant_button_held = false;
-			bool stadia_combo_held = false;
-			bool instant_trigger_release = false;
-			bool instantReleaseL = false;
-			bool instantReleaseR = false;
 			_stream.ReadTimeout = Timeout.Infinite;
 			byte[] data = new byte[_device.GetMaxInputReportLength()];
 
 			StadiaReport report = new StadiaReport();
-			StadiaReport report_prev = new StadiaReport();
+			//report.L2.InstantRelease = true;
+			//report.R2.InstantRelease = true;
+			//report.L3.ToggleMode = true;
 			while( running )
 			{
 				int read = 0;
@@ -308,51 +293,6 @@ WRITE_STREAM_FAILURE:
 						}
 					}*/
 
-					byte curL2 = report.L2;
-					byte curR2 = report.R2;
-					if( instant_trigger_release )
-					{
-						if( !instantReleaseL )
-						{
-							if( report_prev.L2 == 0xFF && curL2 < 0xFF )
-							{
-								curL2 = 0x00;
-								instantReleaseL = true;
-							}
-						}
-						else if( curL2 == 0x00 || curL2 > report_prev.L2 )
-						{
-							instantReleaseL = false;
-						}
-						else // are currently instant releasing
-						{
-							curL2 = 0x00;
-						}
-
-						if( !instantReleaseR )
-						{
-							if( report_prev.R2 == 0xFF && curR2 < 0xFF )
-							{
-								curR2 = 0x00;
-								instantReleaseR = true;
-							}
-						}
-						else if( curR2 == 0x00 || curR2 > report_prev.R2 )
-						{
-							instantReleaseR = false;
-						}
-						else // are currently instant releasing
-						{
-							curR2 = 0x00;
-						}
-					}
-
-					// Save current report before modifying it with additional features
-					report.CopyValuesTo( report_prev );
-					// Modify current report values before translating to Xbox
-					report.L2.Value = curL2;
-					report.R2.Value = curR2;
-
 					// reset report in case profile updates as we're running
 					target360.ResetReport();
 					Dictionary<Type, Xbox360Property> profile = profiles[currentProfile];
@@ -407,9 +347,8 @@ WRITE_STREAM_FAILURE:
 
 					target360.SubmitReport();
 
-					if( report.Screenshot && !ss_button_held )
+					if( report.Screenshot.Pressed )
 					{
-						ss_button_held = true;
 						try
 						{
 							// TODO: Allow configuring this keybind.
@@ -420,14 +359,9 @@ WRITE_STREAM_FAILURE:
 						{
 						}
 					}
-					else if( ss_button_held && !report.Screenshot )
-					{
-						ss_button_held = false;
-					}
 
-					if( report.Assistant && !assistant_button_held )
+					if( report.Assistant.Pressed )
 					{
-						assistant_button_held = true;
 						try
 						{
 							// TODO: Allow configuring this keybind.
@@ -438,15 +372,10 @@ WRITE_STREAM_FAILURE:
 						{
 						}
 					}
-					else if( assistant_button_held && !report.Assistant )
-					{
-						assistant_button_held = false;
-					}
 
-					if( report.Stadia && ( report.Down || report.Up ) && !stadia_combo_held )
+					if( report.Stadia && ( report.Down.Pressed || report.Up.Pressed ) )
 					{
-						stadia_combo_held = true;
-						if( report.Up )
+						if( report.Up.Pressed )
 						{
 							if( ++currentProfile > profiles.Count - 1 )
 							{
@@ -461,10 +390,6 @@ WRITE_STREAM_FAILURE:
 							}
 						}
 					}
-					else
-					{
-						stadia_combo_held = false;
-					}
 				}
 			}
 			return;
@@ -475,6 +400,17 @@ INPUT_STREAM_FAILURE:
 
 		public class StadiaReport
 		{
+			public const int DATA_ID = 0x00;
+			public const int DATA_DPAD = 0x01;
+			public const int DATA_BUTTONS_1 = 0x02;
+			public const int DATA_BUTTONS_2 = 0x03;
+			public const int DATA_LX = 0x04;
+			public const int DATA_LY = 0x05;
+			public const int DATA_RX = 0x06;
+			public const int DATA_RY = 0x07;
+			public const int DATA_L2 = 0x08;
+			public const int DATA_R2 = 0x09;
+
 			public StadiaProperty[] Props
 			{
 				get;
@@ -535,22 +471,24 @@ INPUT_STREAM_FAILURE:
 
 			public bool PopulateFromReport( byte[] report )
 			{
-				// A newer firmware uses 11 byte outputs, format appears to be unchanged and I have not found what the extra byte actually is.
-				if( ( report.Length == 11 || report.Length == 10 ) && report[DATA_ID] == 0x03 )
+				// Report length is supposed to be 10 or 11 bytes (newer fw is 11). Just check that we won't read out of bounds though.
+				if( report.Length > DATA_R2 && report[DATA_ID] == 0x03 )
 				{
-					A.Value = ( report[DATA_BUTTONS_2] & 0x40 ) != 0;
-					B.Value = ( report[DATA_BUTTONS_2] & 0x20 ) != 0;
-					X.Value = ( report[DATA_BUTTONS_2] & 0x10 ) != 0;
-					Y.Value = ( report[DATA_BUTTONS_2] & 0x08 ) != 0;
-					L1.Value = ( report[DATA_BUTTONS_2] & 0x04 ) != 0;
-					R1.Value = ( report[DATA_BUTTONS_2] & 0x02 ) != 0;
-					L3.Value = ( report[DATA_BUTTONS_2] & 0x01 ) != 0;
-					R3.Value = ( report[DATA_BUTTONS_1] & 0x80 ) != 0;
-					Screenshot.Value = ( report[DATA_BUTTONS_1] & 0x01 ) != 0;
-					Assistant.Value = ( report[DATA_BUTTONS_1] & 0x02 ) != 0;
-					Start.Value = ( report[DATA_BUTTONS_1] & 0x20 ) != 0;
-					Select.Value = ( report[DATA_BUTTONS_1] & 0x40 ) != 0;
-					Stadia.Value = ( report[DATA_BUTTONS_1] & 0x10 ) != 0;
+					byte scratch = report[DATA_BUTTONS_1];
+					Screenshot.Value = ( scratch & 0x01 ) > 0;
+					Assistant.Value = ( scratch & 0x02 ) > 0;
+					Stadia.Value = ( scratch & 0x10 ) > 0;
+					Start.Value = ( scratch & 0x20 ) > 0;
+					Select.Value = ( scratch & 0x40 ) > 0;
+					R3.Value = ( scratch & 0x80 ) > 0;
+					scratch = report[DATA_BUTTONS_2];
+					L3.Value = ( scratch & 0x01 ) > 0;
+					R1.Value = ( scratch & 0x02 ) > 0;
+					L1.Value = ( scratch & 0x04 ) > 0;
+					Y.Value = ( scratch & 0x08 ) > 0;
+					X.Value = ( scratch & 0x10 ) > 0;
+					B.Value = ( scratch & 0x20 ) > 0;
+					A.Value = ( scratch & 0x40 ) > 0;
 					LX.Value = report[DATA_LX];
 					LY.Value = report[DATA_LY];
 					RX.Value = report[DATA_RX];
@@ -560,69 +498,45 @@ INPUT_STREAM_FAILURE:
 
 					switch( report[DATA_DPAD] )
 					{
-						case 8:
 						default:
 							Up.Value = Right.Value = Down.Value = Left.Value = false;
-							break;
+							return true;
 						case 0:
 							Up.Value = true;
 							Right.Value = Down.Value = Left.Value = false;
-							break;
+							return true;
 						case 1:
 							Up.Value = Right.Value = true;
 							Down.Value = Left.Value = false;
-							break;
+							return true;
 						case 2:
 							Right.Value = true;
 							Down.Value = Left.Value = Up.Value = false;
-							break;
+							return true;
 						case 3:
 							Right.Value = Down.Value = true;
 							Left.Value = Up.Value = false;
-							break;
+							return true;
 						case 4:
 							Down.Value = true;
 							Left.Value = Up.Value = Right.Value = false;
-							break;
+							return true;
 						case 5:
 							Down.Value = Left.Value = true;
 							Up.Value = Right.Value = false;
-							break;
+							return true;
 						case 6:
 							Left.Value = true;
 							Up.Value = Right.Value = Down.Value = false;
-							break;
+							return true;
 						case 7:
 							Left.Value = Up.Value = true;
 							Right.Value = Down.Value = false;
-							break;
+							return true;
 					}
-					return true;
+					//return true; // note: unreachable
 				}
 				return false;
-			}
-
-			public void CopyValuesTo( StadiaReport other )
-			{
-				other.A.Value = A;
-				other.B.Value = B;
-				other.X.Value = X;
-				other.Y.Value = Y;
-				other.L1.Value = L1;
-				other.R1.Value = R1;
-				other.L3.Value = L3;
-				other.R3.Value = R3;
-				other.Screenshot.Value = Screenshot;
-				other.Assistant.Value = Assistant;
-				other.Start.Value = Start;
-				other.Select.Value = Select;
-				other.Stadia.Value = Stadia;
-				other.LX.Value = LX;
-				other.LY.Value = LY;
-				other.RX.Value = RX;
-				other.RY.Value = RY;
-				other.L2.Value = L2;
-				other.R2.Value = R2;
 			}
 		}
 
@@ -638,10 +552,63 @@ INPUT_STREAM_FAILURE:
 
 		public class StadiaButton : StadiaProperty
 		{
+			private bool _value = false;
+			private bool _valueprev = false;
+			private bool _valueraw = false;
+			private bool _valuerawprev = false;
+			private bool _toggleMode = false;
+
 			public bool Value
 			{
-				get;
-				set;
+				get => _value;
+				set
+				{
+					_valueprev = _value;
+					_valuerawprev = _valueraw;
+					_valueraw = value;
+					if( !ToggleMode )
+					{
+						_value = value;
+					}
+					else if( value && value != _valuerawprev )
+					{
+						_value = !_value;
+					}
+				}
+			}
+
+			public bool ValuePrev
+			{
+				get => _valueprev;
+				set => _valueprev = value;
+			}
+
+			public bool ValueRaw
+			{
+				get => _valueraw;
+				set => _valueraw = value;
+			}
+
+			public bool ValueRawPrev
+			{
+				get => _valuerawprev;
+				set => _valuerawprev = value;
+			}
+
+			public bool Pressed
+			{
+				get => _valueraw && !_valuerawprev;
+			}
+
+			public bool Released
+			{
+				get => !_valueraw && _valuerawprev;
+			}
+
+			public bool ToggleMode
+			{
+				get => _toggleMode;
+				set => _toggleMode = value;
 			}
 
 			public StadiaButton( string name ) : base( name )
@@ -758,10 +725,39 @@ INPUT_STREAM_FAILURE:
 
 		public class StadiaAxis : StadiaProperty
 		{
+			private byte _value = 0x80;
+			private byte _valueprev = 0x80;
+			private byte _valueraw = 0x80;
+			private byte _valuerawprev = 0x80;
+
 			public byte Value
 			{
-				get;
-				set;
+				get => _value;
+				set
+				{
+					_valuerawprev = _valueraw;
+					_valueprev = _value;
+					_valueraw = value;
+					_value = value;
+				}
+			}
+
+			public byte ValuePrev
+			{
+				get => _valueprev;
+				set => _valueprev = value;
+			}
+
+			public byte ValueRaw
+			{
+				get => _valueraw;
+				set => _valueraw = value;
+			}
+
+			public byte ValueRawPrev
+			{
+				get => _valuerawprev;
+				set => _valuerawprev = value;
 			}
 
 			public bool IsXaxis
@@ -819,7 +815,7 @@ INPUT_STREAM_FAILURE:
 					input -= 0x01;
 				}
 
-				ushort stickUnsigned = (ushort)( input << 8 | ( input << 1 & 0xFF ) );
+				ushort stickUnsigned = (ushort)( input << 8 | ( ( input << 1 ) & 0xFF ) );
 				if( stickUnsigned == 0xFFFE )
 					stickUnsigned = 0xFFFF;
 
@@ -842,10 +838,74 @@ INPUT_STREAM_FAILURE:
 
 		public class StadiaSlider : StadiaProperty
 		{
+			private byte _value = 0x00;
+			private byte _valueprev = 0x00;
+			private byte _valueraw = 0x00;
+			private byte _valuerawprev = 0x00;
+			private bool _instantrelease = false;
+			private bool areInstantReleasing = false;
+
 			public byte Value
 			{
-				get;
-				set;
+				get => _value;
+				set
+				{
+					_valuerawprev = _valueraw;
+					_valueprev = _value;
+					_valueraw = value;
+					if( !_instantrelease )
+					{
+						_value = value;
+					}
+					else
+					{
+						if( value == 0x00 || value > _valuerawprev )
+						{
+							_value = value;
+							areInstantReleasing = false;
+						}
+						else if( !areInstantReleasing )
+						{
+							if( _valuerawprev == 0xFF && value < 0xFF )
+							{
+								_value = 0x00;
+								areInstantReleasing = true;
+							}
+							else
+							{
+								_value = value;
+							}
+						}
+						else
+						{
+							_value = 0x00;
+						}
+					}
+				}
+			}
+
+			public byte ValuePrev
+			{
+				get => _valueprev;
+				set => _valueprev = value;
+			}
+
+			public byte ValueRaw
+			{
+				get => _valueraw;
+				set => _valueraw = value;
+			}
+
+			public byte ValueRawPrev
+			{
+				get => _valuerawprev;
+				set => _valuerawprev = value;
+			}
+
+			public bool InstantRelease
+			{
+				get => _instantrelease;
+				set => _instantrelease = value;
 			}
 
 			public StadiaSlider( string name ) : base( name )
