@@ -14,6 +14,7 @@ using System.Windows.Forms;
 using StadiEm.Device;
 using StadiEm.Device.Stadia;
 using StadiEm.Device.RB3KeyboardController;
+using StadiEm.Device.Luna;
 
 namespace StadiEm
 {
@@ -150,6 +151,10 @@ namespace StadiEm
 			{
 				var compatibleDevices = DeviceList.Local.GetHidDevices( StadiaController.VID, StadiaController.PID );
 				compatibleDevices = compatibleDevices.Concat( DeviceList.Local.GetHidDevices( RB3KeyboardController.VID, RB3KeyboardController.PID ) );
+				compatibleDevices = compatibleDevices.Concat( DeviceList.Local.GetHidDevices( LunaController.VID, LunaController.PID )
+					// Luna controllers present a vendor-defined HID device as well, but for now we're only interested in the standard gamepad device
+					.Where( device => device.GetMaxOutputReportLength() > 3 ) );
+
 				var existingDevices = gamepads.Select( g => g._device ).ToList();
 				var newDevices = compatibleDevices.Where( d => !existingDevices.Select( e => e.DevicePath ).Contains( d.DevicePath ) );
 				foreach( var gamepad in gamepads.ToList() )
@@ -169,9 +174,14 @@ namespace StadiEm
 					HidStream stream = null;
 					try
 					{
-						reEnableDevice( devicePathToInstanceId( device.DevicePath ) );
 						OpenConfiguration oc = new OpenConfiguration();
-						oc.SetOption( OpenOption.Exclusive, true );
+						// reEnable doesn't seem to play nicely with Luna, and exclusive mode never works
+						if( !( device.VendorID == LunaController.VID && device.ProductID == LunaController.PID ) )
+						{
+							reEnableDevice( devicePathToInstanceId( device.DevicePath ) );
+							oc.SetOption( OpenOption.Exclusive, true );
+							oc.SetOption( OpenOption.Transient, true );
+						}
 						oc.SetOption( OpenOption.Priority, OpenPriority.VeryHigh );
 						stream = device.Open( oc );
 					}
@@ -208,6 +218,12 @@ namespace StadiEm
 							if( device.ProductID == RB3KeyboardController.PID )
 							{
 								gamepads.Add( new RB3KeyboardController( device, stream, client, index ) );
+							}
+							break;
+						case LunaController.VID:
+							if( device.ProductID == LunaController.PID )
+							{
+								gamepads.Add( new LunaController( device, stream, client, index ) );
 							}
 							break;
 					}
