@@ -78,7 +78,7 @@ namespace HidSharp
         /// <returns>The number of bytes read.</returns>
         public int Read(byte[] buffer)
         {
-            Throw.If.Null(buffer, "buffer");
+            //Throw.If.Null(buffer, "buffer");
             return Read(buffer, 0, buffer.Length);
         }
 

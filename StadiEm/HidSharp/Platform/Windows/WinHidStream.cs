@@ -99,7 +99,7 @@ namespace HidSharp.Platform.Windows
         // for the Report ID.
         public unsafe override int Read(byte[] buffer, int offset, int count)
         {
-            Throw.If.OutOfRange(buffer, offset, count); uint bytesTransferred;
+            //Throw.If.OutOfRange(buffer, offset, count); uint bytesTransferred;
             IntPtr @event = NativeMethods.CreateManualResetEventOrThrow();
 			
 			HandleAcquireIfOpenOrFail();
@@ -118,7 +118,7 @@ namespace HidSharp.Platform.Windows
                         
                         NativeMethods.OverlappedOperation(_handle, @event, ReadTimeout, _closeEventHandle,
                             NativeMethods.ReadFile(_handle, ptr, Math.Max(count, minIn), IntPtr.Zero, overlapped),
-                            overlapped, out bytesTransferred);
+                            overlapped, out uint bytesTransferred);
 
 	                    if (count > (int)bytesTransferred) { count = (int)bytesTransferred; }
 	                    Array.Copy(_readBuffer, 0, buffer, offset, count);
@@ -154,7 +154,7 @@ namespace HidSharp.Platform.Windows
 
         public unsafe override void Write(byte[] buffer, int offset, int count)
         {
-            Throw.If.OutOfRange(buffer, offset, count); uint bytesTransferred;
+            //Throw.If.OutOfRange(buffer, offset, count); uint bytesTransferred;
             IntPtr @event = NativeMethods.CreateManualResetEventOrThrow();
 
 			HandleAcquireIfOpenOrFail();
@@ -183,7 +183,7 @@ namespace HidSharp.Platform.Windows
 
                             NativeMethods.OverlappedOperation(_handle, @event, WriteTimeout, _closeEventHandle,
 	                            NativeMethods.WriteFile(_handle, ptr + offset0, Math.Min(minOut, count), IntPtr.Zero, overlapped),
-	                            overlapped, out bytesTransferred);
+	                            overlapped, out uint bytesTransferred);
 	                        count -= (int)bytesTransferred; offset0 += (int)bytesTransferred;
 	                    }
 	                }
