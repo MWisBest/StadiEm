@@ -29,6 +29,7 @@
     <Content Include="Resources\StadiEm.ico" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="hidlibrary" Version="3.3.40" />
     <PackageReference Include="JetBrains.Annotations" Version="2020.1.0" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="Nefarius.ViGEm.Client" Version="1.16.150" />
