@@ -62,9 +62,8 @@ namespace StadiEm.Device.Luna
 			profiles.Add( xboxMap );
 			profiles.Add( codMap );
 
-			// Writes are currently broken because Windows hates ~~me~~ everyone
-			//target360.FeedbackReceived += this.Target360_FeedbackReceived;
-			//targetDS4.FeedbackReceived += this.TargetDS4_FeedbackReceived;
+			target360.FeedbackReceived += this.Target360_FeedbackReceived;
+			targetDS4.FeedbackReceived += this.TargetDS4_FeedbackReceived;
 
 			if( !pluggedIn360 )
 			{
@@ -97,8 +96,19 @@ namespace StadiEm.Device.Luna
 
 		private void vibrate( byte largeMotor, byte smallMotor )
 		{
-			// ??
-			byte[] vibReport = { 0x09, 0x01, 0x08, 0x00, largeMotor, smallMotor, 0x00, 0x00, 0x00 };
+			byte actualLargeMotor = (byte)Util.ConvertRangeInt( largeMotor, 0, 255, 0, 100 );
+			// BUG: For whatever reason there's almost no PWM on the small motor. Try to put it in a range that works.
+			byte actualSmallMotor = 0x00;
+			if( smallMotor > 0x0F )
+				actualSmallMotor = (byte)Util.ConvertRangeInt( smallMotor, 0, 255, 0x80, 0x90 );
+
+			// report ID (03)
+			// enableAcuators (4 bits)
+			// magnitude x4, 0-100
+			// duration
+			// start delay
+			// loop count
+			byte[] vibReport = { 0x03, 0x0F, 0x00, 0x00, actualLargeMotor, actualSmallMotor, 0xFF, 0x00, 0xEC };
 
 			writeQueue.Enqueue( vibReport );
 			try
@@ -468,6 +478,8 @@ INPUT_STREAM_FAILURE:
 			{
 				// NOTICE: Due to what I assume is a firmware bug, when the Luna button is pressed data[0] becomes 2 and data[1] (LX1) becomes 1.
 				// The sticks are clearly 8 bit values repeated twice, so we treat them as a byte and handle the edge case for Luna button.
+
+				// Update: It turns out Luna button is a separate report (02), but the controller bugs out and sends the entirety of report 01 with it.
 				if( report.Length > 16 && (report[DATA_ID] == 0x01 || (report[DATA_ID] == 0x02 && report[DATA_LX1] == 0x01)))
 				{
 					Luna.Value = ( report[DATA_ID] & 0x02 ) > 0;
