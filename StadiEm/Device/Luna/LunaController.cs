@@ -480,9 +480,11 @@ INPUT_STREAM_FAILURE:
 				// The sticks are clearly 8 bit values repeated twice, so we treat them as a byte and handle the edge case for Luna button.
 
 				// Update: It turns out Luna button is a separate report (02), but the controller bugs out and sends the entirety of report 01 with it.
-				if( report.Length > 16 && (report[DATA_ID] == 0x01 || (report[DATA_ID] == 0x02 && report[DATA_LX1] == 0x01)))
+				// Substantial testing has shown report 2 doesn't come with NEW report 1 data, so treat them separately
+				if( report.Length > 16 && report[DATA_ID] == 0x01 )
 				{
-					Luna.Value = ( report[DATA_ID] & 0x02 ) > 0;
+					// In order for 'Pressed' detection to work for the Luna button we have to poke its value here every time.
+					Luna.Value = Luna.ValueRaw;
 
 					byte scratch = report[DATA_BUTTONS_1];
 					A.Value = ( scratch & 0x01 ) > 0;
@@ -551,6 +553,11 @@ INPUT_STREAM_FAILURE:
 							return true;
 					}
 					//return true; // note: unreachable
+				}
+				else if( report.Length >= 2 && report[DATA_ID] == 0x02 )
+				{
+					Luna.Value = report[1] == 0x01;
+					return true;
 				}
 				return false;
 			}
