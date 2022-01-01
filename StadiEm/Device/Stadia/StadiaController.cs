@@ -16,10 +16,10 @@ namespace StadiEm.Device.Stadia
 		public const ushort VID = 0x18D1;
 		public const ushort PID = 0x9400;
 
-		public List<Dictionary<Type, Xbox360Property>> profiles;
+		public List<Dictionary<Type, Xbox360Property[]>> profiles;
 		public int currentProfile = 0;
 
-		private Dictionary<Type, Xbox360Property> xboxMap;
+		private Dictionary<Type, Xbox360Property[]> xboxMap;
 
 		public Thread ssThread, vidThread, inputThread, writeThread;
 		private AutoResetEvent writeEvent;
@@ -27,40 +27,41 @@ namespace StadiEm.Device.Stadia
 
 		public StadiaController( HidDevice device, HidStream stream, ViGEmClient client, int index ) : base( device, stream, client, index )
 		{
-			profiles = new List<Dictionary<Type, Xbox360Property>>();
-			xboxMap = new Dictionary<Type, Xbox360Property>
+			profiles = new List<Dictionary<Type, Xbox360Property[]>>();
+			xboxMap = new Dictionary<Type, Xbox360Property[]>
 			{
-				[typeof( StadiaButton.A )] = Xbox360Button.A,
-				[typeof( StadiaButton.B )] = Xbox360Button.B,
-				[typeof( StadiaButton.X )] = Xbox360Button.X,
-				[typeof( StadiaButton.Y )] = Xbox360Button.Y,
-				[typeof( StadiaButton.Up )] = Xbox360Button.Up,
-				[typeof( StadiaButton.Down )] = Xbox360Button.Down,
-				[typeof( StadiaButton.Left )] = Xbox360Button.Left,
-				[typeof( StadiaButton.Right )] = Xbox360Button.Right,
-				[typeof( StadiaButton.L1 )] = Xbox360Button.LeftShoulder,
-				[typeof( StadiaButton.R1 )] = Xbox360Button.RightShoulder,
-				[typeof( StadiaButton.L3 )] = Xbox360Button.LeftThumb,
-				[typeof( StadiaButton.R3 )] = Xbox360Button.RightThumb,
-				[typeof( StadiaButton.Select )] = Xbox360Button.Back,
-				[typeof( StadiaButton.Start )] = Xbox360Button.Start,
-				[typeof( StadiaButton.Stadia )] = Xbox360Button.Guide,
-				[typeof( StadiaAxis.LX )] = Xbox360Axis.LeftThumbX,
-				[typeof( StadiaAxis.LY )] = Xbox360Axis.LeftThumbY,
-				[typeof( StadiaAxis.RX )] = Xbox360Axis.RightThumbX,
-				[typeof( StadiaAxis.RY )] = Xbox360Axis.RightThumbY,
-				[typeof( StadiaSlider.L2 )] = Xbox360Slider.LeftTrigger,
-				[typeof( StadiaSlider.R2 )] = Xbox360Slider.RightTrigger,
+				[typeof( StadiaButton.A )] = new Xbox360Property[] { Xbox360Button.A },
+				[typeof( StadiaButton.B )] = new Xbox360Property[] { Xbox360Button.B },
+				[typeof( StadiaButton.X )] = new Xbox360Property[] { Xbox360Button.X },
+				[typeof( StadiaButton.Y )] = new Xbox360Property[] { Xbox360Button.Y },
+				[typeof( StadiaButton.Up )] = new Xbox360Property[] { Xbox360Button.Up },
+				[typeof( StadiaButton.Down )] = new Xbox360Property[] { Xbox360Button.Down },
+				[typeof( StadiaButton.Left )] = new Xbox360Property[] { Xbox360Button.Left },
+				[typeof( StadiaButton.Right )] = new Xbox360Property[] { Xbox360Button.Right },
+				[typeof( StadiaButton.L1 )] = new Xbox360Property[] { Xbox360Button.LeftShoulder },
+				[typeof( StadiaButton.R1 )] = new Xbox360Property[] { Xbox360Button.RightShoulder },
+				[typeof( StadiaButton.L3 )] = new Xbox360Property[] { Xbox360Button.LeftThumb },
+				[typeof( StadiaButton.R3 )] = new Xbox360Property[] { Xbox360Button.RightThumb },
+				[typeof( StadiaButton.Select )] = new Xbox360Property[] { Xbox360Button.Back },
+				[typeof( StadiaButton.Start )] = new Xbox360Property[] { Xbox360Button.Start },
+				[typeof( StadiaButton.Stadia )] = new Xbox360Property[] { Xbox360Button.Guide },
+				[typeof( StadiaAxis.LX )] = new Xbox360Property[] { Xbox360Axis.LeftThumbX },
+				[typeof( StadiaAxis.LY )] = new Xbox360Property[] { Xbox360Axis.LeftThumbY },
+				[typeof( StadiaAxis.RX )] = new Xbox360Property[] { Xbox360Axis.RightThumbX },
+				[typeof( StadiaAxis.RY )] = new Xbox360Property[] { Xbox360Axis.RightThumbY },
+				[typeof( StadiaSlider.L2 )] = new Xbox360Property[] { Xbox360Slider.LeftTrigger },
+				[typeof( StadiaSlider.R2 )] = new Xbox360Property[] { Xbox360Slider.RightTrigger },
 			};
-			Dictionary<Type, Xbox360Property> codMap = new Dictionary<Type, Xbox360Property>();
+			Dictionary<Type, Xbox360Property[]> forzaMap = new Dictionary<Type, Xbox360Property[]>();
 			foreach( Type key in xboxMap.Keys )
 			{
-				codMap.Add( key, xboxMap[key] );
+				forzaMap.Add( key, xboxMap[key] );
 			}
-			codMap[typeof( StadiaButton.B )] = Xbox360Slider.RightTrigger;
-			codMap[typeof( StadiaSlider.R2 )] = Xbox360Button.B;
+			forzaMap[typeof( StadiaButton.B )] = new Xbox360Property[] { Xbox360Button.B, Xbox360Button.A };
+			forzaMap[typeof( StadiaButton.X )] = new Xbox360Property[] { Xbox360Button.X, Xbox360Button.A };
+			forzaMap[typeof( StadiaButton.L1 )] = new Xbox360Property[] { Xbox360Button.LeftShoulder, Xbox360Button.A };
 			profiles.Add( xboxMap );
-			profiles.Add( codMap );
+			profiles.Add( forzaMap );
 
 			target360.FeedbackReceived += this.Target360_FeedbackReceived;
 			targetDS4.FeedbackReceived += this.TargetDS4_FeedbackReceived;
@@ -295,51 +296,56 @@ WRITE_STREAM_FAILURE:
 
 					// reset report in case profile updates as we're running
 					target360.ResetReport();
-					Dictionary<Type, Xbox360Property> profile = profiles[currentProfile];
+					Dictionary<Type, Xbox360Property[]> profile = profiles[currentProfile];
 					foreach( StadiaProperty prop in report.Props )
 					{
 						Type stadiaType = prop.GetType();
-						if( profile.TryGetValue( stadiaType, out Xbox360Property xboxProp ) )
+						if( profile.TryGetValue( stadiaType, out Xbox360Property[] xboxPropArray ) )
 						{
-							if( xboxProp is Xbox360Button xbutton )
+							for( int i = 0; i < xboxPropArray.Length; ++i)
 							{
-								if( prop is StadiaButton sbutton )
+								Xbox360Property xboxProp = xboxPropArray[i];
+								if( xboxProp is Xbox360Button xbutton )
 								{
-									target360.SetButtonState( xbutton, sbutton );
+									if( prop is StadiaButton sbutton )
+									{
+										if( i == 0 || sbutton )
+											target360.SetButtonState( xbutton, sbutton );
+									}
+									else if( prop is StadiaSlider sslider )
+									{
+										target360.SetButtonState( xbutton, sslider );
+									}
+									else if( prop is StadiaAxis saxis )
+									{
+										target360.SetButtonState( xbutton, saxis );
+									}
 								}
-								else if( prop is StadiaSlider sslider )
+								else if( xboxProp is Xbox360Slider xslider )
 								{
-									target360.SetButtonState( xbutton, sslider );
+									if( prop is StadiaSlider sslider )
+									{
+										target360.SetSliderValue( xslider, sslider );
+									}
+									else if( prop is StadiaButton sbutton )
+									{
+										target360.SetSliderValue( xslider, sbutton );
+									}
+									else if( prop is StadiaAxis saxis )
+									{
+										target360.SetSliderValue( xslider, saxis );
+									}
 								}
-								else if( prop is StadiaAxis saxis )
+								else if( xboxProp is Xbox360Axis xaxis )
 								{
-									target360.SetButtonState( xbutton, saxis );
-								}
-							}
-							else if( xboxProp is Xbox360Slider xslider )
-							{
-								if( prop is StadiaSlider sslider )
-								{
-									target360.SetSliderValue( xslider, sslider );
-								}
-								else if( prop is StadiaButton sbutton )
-								{
-									target360.SetSliderValue( xslider, sbutton );
-								}
-								else if( prop is StadiaAxis saxis )
-								{
-									target360.SetSliderValue( xslider, saxis );
-								}
-							}
-							else if( xboxProp is Xbox360Axis xaxis )
-							{
-								if( prop is StadiaAxis saxis )
-								{
-									target360.SetAxisValue( xaxis, saxis );
-								}
-								else
-								{
-									throw new NotImplementedException();
+									if( prop is StadiaAxis saxis )
+									{
+										target360.SetAxisValue( xaxis, saxis );
+									}
+									else
+									{
+										throw new NotImplementedException();
+									}
 								}
 							}
 						}
@@ -382,7 +388,7 @@ WRITE_STREAM_FAILURE:
 								currentProfile = profiles.Count - 1;
 							}
 						}
-						else// if( report.Down )
+						else// if( report.Down.Pressed )
 						{
 							if( --currentProfile < 0 )
 							{
@@ -843,7 +849,9 @@ INPUT_STREAM_FAILURE:
 			private byte _valueraw = 0x00;
 			private byte _valuerawprev = 0x00;
 			private bool _instantrelease = false;
+			private bool _togglemode = false;
 			private bool areInstantReleasing = false;
+			private bool toggleState = false;
 
 			public byte Value
 			{
@@ -853,11 +861,13 @@ INPUT_STREAM_FAILURE:
 					_valuerawprev = _valueraw;
 					_valueprev = _value;
 					_valueraw = value;
-					if( !_instantrelease )
+					if( !_instantrelease && !_togglemode )
 					{
 						_value = value;
+						return;
 					}
-					else
+
+					if( _instantrelease )
 					{
 						if( value == 0x00 || value > _valuerawprev )
 						{
@@ -880,6 +890,14 @@ INPUT_STREAM_FAILURE:
 						{
 							_value = 0x00;
 						}
+					}
+					else if( _togglemode )
+					{
+						if( value == 0xFF && _valuerawprev < 0xFF )
+						{
+							toggleState = !toggleState;
+						}
+						_value = (byte)( toggleState ? 0xFF : 0x00 );
 					}
 				}
 			}
@@ -906,6 +924,12 @@ INPUT_STREAM_FAILURE:
 			{
 				get => _instantrelease;
 				set => _instantrelease = value;
+			}
+
+			public bool ToggleMode
+			{
+				get => _togglemode;
+				set => _togglemode = value;
 			}
 
 			public StadiaSlider( string name ) : base( name )
