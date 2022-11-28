@@ -63,6 +63,7 @@ namespace HidSharp
                                       _priority, _interruptible, _transient);
         }
 
+        [Obsolete]
         public void Open()
         {
             Close();
@@ -90,6 +91,7 @@ namespace HidSharp
             }
         }
 
+        [Obsolete]
         void Run()
         {
             SystemEvent exclusiveEvent = null;
