@@ -9,6 +9,28 @@ using System.ComponentModel;
 using System.IO;
 using System.Threading;
 
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
+
+static class KeyboardSend
+{
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);
+
+    private const int KEYEVENTF_EXTENDEDKEY = 1;
+    private const int KEYEVENTF_KEYUP = 2;
+
+    public static void KeyDown(Keys vKey)
+    {
+        keybd_event((byte)vKey, 0, KEYEVENTF_EXTENDEDKEY, 0);
+    }
+
+    public static void KeyUp(Keys vKey)
+    {
+        keybd_event((byte)vKey, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+    }
+}
 namespace StadiEm.Device.Stadia
 {
 	public class StadiaController : BaseHIDController
@@ -357,9 +379,10 @@ WRITE_STREAM_FAILURE:
 					{
 						try
 						{
-							// TODO: Allow configuring this keybind.
-							ssThread = new Thread( () => System.Windows.Forms.SendKeys.SendWait( "^+Z" ) );
-							ssThread.Start();
+							// Captures a screenshot of active window using Win+Alt+PrintScreen
+							KeyboardSend.KeyDown(Keys.LWin);
+							System.Windows.Forms.SendKeys.SendWait("%{PRTSC}");
+							KeyboardSend.KeyUp(Keys.LWin);
 						}
 						catch
 						{
@@ -370,9 +393,10 @@ WRITE_STREAM_FAILURE:
 					{
 						try
 						{
-							// TODO: Allow configuring this keybind.
-							vidThread = new Thread( () => System.Windows.Forms.SendKeys.SendWait( "^+E" ) );
-							vidThread.Start();
+							// Records Last 30 Seconds using Win+Alt+G
+							KeyboardSend.KeyDown(Keys.LWin);
+							System.Windows.Forms.SendKeys.SendWait("%{g}");
+							KeyboardSend.KeyUp(Keys.LWin);
 						}
 						catch
 						{
