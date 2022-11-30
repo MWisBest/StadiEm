@@ -25,24 +25,28 @@ namespace HidSharp
     public abstract class SerialDevice : Device
     {
         /// <inheritdoc/>
+        [Obsolete]
         public new SerialStream Open()
         {
             return Open(null);
         }
 
         /// <inheritdoc/>
+        [Obsolete]
         public new SerialStream Open(OpenConfiguration openConfig)
         {
             return (SerialStream)base.Open(openConfig);
         }
 
         /// <inheritdoc/>
+        [Obsolete]
         public bool TryOpen(out SerialStream stream)
         {
             return TryOpen(null, out stream);
         }
 
         /// <inheritdoc/>
+        [Obsolete]
         public bool TryOpen(OpenConfiguration openConfig, out SerialStream stream)
         {
             DeviceStream baseStream;

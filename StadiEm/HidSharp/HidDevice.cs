@@ -31,12 +31,14 @@ namespace HidSharp
     public abstract class HidDevice : Device
     {
         /// <inheritdoc/>
+        [Obsolete]
         public new HidStream Open()
         {
             return (HidStream)base.Open();
         }
 
         /// <inheritdoc/>
+        [Obsolete]
         public new HidStream Open(OpenConfiguration openConfig)
         {
             return (HidStream)base.Open(openConfig);
@@ -134,12 +136,14 @@ namespace HidSharp
         }
 
         /// <inheritdoc/>
+        [Obsolete]
         public bool TryOpen(out HidStream stream)
         {
             return TryOpen(null, out stream);
         }
 
         /// <inheritdoc/>
+        [Obsolete]
         public bool TryOpen(OpenConfiguration openConfig, out HidStream stream)
         {
             DeviceStream baseStream;

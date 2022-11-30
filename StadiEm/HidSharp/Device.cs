@@ -27,16 +27,19 @@ namespace HidSharp
         /// Makes a connection to the device, or throws an exception if the connection cannot be made.
         /// </summary>
         /// <returns>The stream to use to communicate with the device.</returns>
+        [Obsolete]
         public DeviceStream Open()
         {
             return Open(null);
         }
 
+        [Obsolete]
         public DeviceStream Open(OpenConfiguration openConfig)
         {
             return OpenDeviceAndRestrictAccess(openConfig ?? new OpenConfiguration());
         }
 
+        [Obsolete]
         protected virtual DeviceStream OpenDeviceAndRestrictAccess(OpenConfiguration openConfig)
         {
             bool exclusive = (bool)openConfig.GetOption(OpenOption.Exclusive);
@@ -85,17 +88,20 @@ namespace HidSharp
         /// </summary>
         /// <param name="stream">The stream to use to communicate with the device.</param>
         /// <returns><c>true</c> if the connection was successful.</returns>
+        [Obsolete]
         public bool TryOpen(out DeviceStream stream)
         {
             return TryOpen(null, out stream);
         }
 
+        [Obsolete]
         public bool TryOpen(OpenConfiguration openConfig, out DeviceStream stream)
         {
             Exception exception;
             return TryOpen(openConfig, out stream, out exception);
         }
 
+        [Obsolete]
         public bool TryOpen(OpenConfiguration openConfig, out DeviceStream stream, out Exception exception)
         {
             try
